@@ -1,4 +1,3 @@
-
 # Configure esp32 WIFI connectivity over BLTE
 
 Store wifi credentials in EEPROM using BLTE for future connection
