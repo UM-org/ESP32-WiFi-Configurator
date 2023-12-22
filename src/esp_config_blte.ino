@@ -164,7 +164,6 @@ void checkBLTEConfig()
     Serial.println(bte_serial);
     if (bte_serial.startsWith("CACHE"))
     {
-      Serial.println("cache fn");
       if (bte_serial.indexOf("CLEAR") != -1)
       {
         clearEEPROM();
@@ -186,9 +185,6 @@ void checkBLTEConfig()
         saveSSID(ssid);
         storedSSID = getStoredSSID();
         ESP_BT.print("SSID stored : {" + storedSSID + "}");
-        Serial.println(ssid);
-        Serial.println(start);
-        Serial.println(end);
       }
 
       if (bte_serial.indexOf("PWD") != -1)

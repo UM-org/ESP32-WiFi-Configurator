@@ -37,6 +37,10 @@ Consult WIFI credential
 ```
 WIFI CRD
 ```
+Clear stored wifi
+```
+CACHE CLEAR
+```
 # Using PlatformIO
 
 ## Change Patitions table for esp32 nodemcu-32s
