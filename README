@@ -27,11 +27,11 @@ WIFI CONNECT
 
 Set new SSID
 ```
-WIFI SSID : new_ssid
+WIFI SSID : "new_ssid"
 ```
 Set new PASSWORD
 ```
-WIFI PWD : new_pwd
+WIFI PWD : "new_pwd"
 ```
 Consult WIFI credential
 ```
