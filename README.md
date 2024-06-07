@@ -12,13 +12,14 @@ Change BLTE device name
 ```cpp
 String device_name = "ESP32-BT-Slave";
 ```
+
 ## CMDS
 
 WIFI Status
 ```
+
 WIFI STATUS
 ```
-
 
 Connect to wifi
 ```
@@ -29,18 +30,32 @@ Set new SSID
 ```
 WIFI SSID : "new_ssid"
 ```
+
 Set new PASSWORD
 ```
 WIFI PWD : "new_pwd"
 ```
-Consult WIFI credential
+
+Consult STORED DATA
 ```
-WIFI CRD
+CACHE GET
 ```
-Clear stored wifi
+
+Clear STORED PARAMS
 ```
 CACHE CLEAR
 ```
+
+Set new MQTT SERVER IP
+```
+SERVER IP : "new_server"
+```
+
+Connect to Server
+```
+SERVER IP : "new_server"
+```
+
 # Using PlatformIO
 
 ## Change Patitions table for esp32 nodemcu-32s

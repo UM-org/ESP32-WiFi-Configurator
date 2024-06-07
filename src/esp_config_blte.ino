@@ -274,72 +274,87 @@ void checkBLTEConfig()
         storedServer = getStoredServer();
         ESP_BT.print("SERVER IP : {" + storedServer + "}");
       }
+      if (bte_serial.indexOf("CONNECT") != -1)
+      {
+        if (WiFi.status() == WL_CONNECTED)
+        {
+          connectMQTT();
+        }
+        else
+        {
+          digitalWrite(error_pin, HIGH);
+          delay(200);
+          digitalWrite(error_pin, LOW);
+          delay(200);
+          digitalWrite(error_pin, HIGH);
+          delay(200);
+          digitalWrite(error_pin, LOW);
+          ESP_BT.print("CANT CONNECT TO MQTT SERVER WHILE WIFI IS NOT CONNECTED");
+        }
+      }
+
+      if (bte_serial.startsWith("CACHE"))
+      {
+        if (bte_serial.indexOf("CLEAR") != -1)
+        {
+          clearEEPROM();
+          ESP_BT.print("Finish");
+        }
+
+        if (bte_serial.indexOf("GET") != -1)
+        {
+          ESP_BT.println("SSID : {" + storedSSID + "} , PWD : {" + storedPWD + "} , MQTT SERVER : {" + storedServer + "}");
+        }
+      }
+      if (bte_serial.startsWith("WIFI"))
+      {
+        if (bte_serial.indexOf("CONNECT") != -1)
+        {
+          connectToWifi(storedSSID, storedPWD);
+        }
+
+        if (bte_serial.indexOf("SSID") != -1)
+        {
+          int start = bte_serial.indexOf('"') + 1;
+          int end = bte_serial.indexOf('"', start + 1);
+          String ssid = bte_serial.substring(start, end);
+          saveSSID(ssid);
+          storedSSID = getStoredSSID();
+          ESP_BT.print("SSID stored : {" + storedSSID + "}");
+        }
+
+        if (bte_serial.indexOf("PWD") != -1)
+        {
+          int start = bte_serial.indexOf('"') + 1;
+          int end = bte_serial.indexOf('"', start + 1);
+          String pwd = bte_serial.substring(start, end);
+          savePWD(pwd);
+          storedPWD = getStoredPWD(),
+          ESP_BT.println("PWD stored : {" + storedPWD + "}");
+        }
+
+        if (bte_serial.indexOf("STATUS") != -1)
+        {
+          String status = "Connected";
+          if (WiFi.status() != WL_CONNECTED)
+          {
+            status = "Not connected";
+          }
+          ESP_BT.println("SSID : " + storedSSID + " ,Status : " + status);
+          ESP_BT.print("LOCAL IP : " + WiFi.localIP().toString());
+        }
+      }
+      delay(500);
       digitalWrite(feed_back_pin, HIGH);
       delay(500);
       digitalWrite(feed_back_pin, LOW);
     }
-    if (bte_serial.startsWith("CACHE"))
-    {
-      if (bte_serial.indexOf("CLEAR") != -1)
-      {
-        clearEEPROM();
-        ESP_BT.print("Finish");
-      }
-    }
-    if (bte_serial.startsWith("WIFI"))
-    {
-      if (bte_serial.indexOf("CONNECT") != -1)
-      {
-        connectToWifi(storedSSID, storedPWD);
-      }
-
-      if (bte_serial.indexOf("SSID") != -1)
-      {
-        int start = bte_serial.indexOf('"') + 1;
-        int end = bte_serial.indexOf('"', start + 1);
-        String ssid = bte_serial.substring(start, end);
-        saveSSID(ssid);
-        storedSSID = getStoredSSID();
-        ESP_BT.print("SSID stored : {" + storedSSID + "}");
-      }
-
-      if (bte_serial.indexOf("PWD") != -1)
-      {
-        int start = bte_serial.indexOf('"') + 1;
-        int end = bte_serial.indexOf('"', start + 1);
-        String pwd = bte_serial.substring(start, end);
-        savePWD(pwd);
-        storedPWD = getStoredPWD(),
-        ESP_BT.println("PWD stored : {" + storedPWD + "}");
-      }
-
-      if (bte_serial.indexOf("CRD") != -1)
-      {
-        ESP_BT.println("SSID : {" + storedSSID + "} , PWD : {" + storedPWD + "} , SERVER : {" + storedServer + "}");
-      }
-
-      if (bte_serial.indexOf("STATUS") != -1)
-      {
-        String status = "Connected";
-        if (WiFi.status() != WL_CONNECTED)
-        {
-          status = "Not connected";
-        }
-        ESP_BT.println("SSID : " + storedSSID + " ,Status : " + status);
-        ESP_BT.print("LOCAL IP : " + WiFi.localIP().toString());
-      }
-    }
-    delay(500);
-    digitalWrite(feed_back_pin, HIGH);
-    delay(500);
-    digitalWrite(feed_back_pin, LOW);
+    delay(20);
   }
-  delay(20);
-}
 
-void loop()
-{
-  checkBLTEConfig();
-  client.publish(topic, "hello world");
-  delay(2000);
-}
+  void loop()
+  {
+    checkBLTEConfig();
+    client.publish(topic, "hello world");
+    delay(2000);
+  }
