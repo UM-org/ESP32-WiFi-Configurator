@@ -1,6 +1,7 @@
 #include "BluetoothSerial.h"
 #include <EEPROM.h>
 #include <WiFi.h>
+#include <PubSubClient.h>
 
 // Default WIFI
 const char *ssid = "your ssid";
@@ -8,14 +9,22 @@ const char *password = "your password";
 String storedSSID;
 String storedPWD;
 
+String storedServer;
+const char *mqttServer = "192.168.137.1";
+const char *topic = "example";
+const char *mqtt_username = "emqx";
+const char *mqtt_password = "public";
+
 WiFiClient espClient;
 BluetoothSerial ESP_BT;
 WiFiServer server(80);
+PubSubClient client(espClient);
 
-String device_name = "ESP32-BT-Slave";
+String device_name = "ESP32-BT-devkit-v4";
 
 const byte wifi_pin = 21;
 const byte feed_back_pin = 19;
+const byte error_pin = 18;
 
 // Check if Bluetooth is available
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -26,6 +35,18 @@ const byte feed_back_pin = 19;
 #if !defined(CONFIG_BT_SPP_ENABLED)
 #error Serial Port Profile for Bluetooth is not available or not enabled. It is only available for the ESP32 chip.
 #endif
+void callback(char *topic, byte *payload, unsigned int length)
+{
+  Serial.print("Message arrived in topic: ");
+  Serial.println(topic);
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++)
+  {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+  Serial.println("-----------------------");
+}
 
 void connectToWifi(String ssid, String password)
 {
@@ -55,16 +76,65 @@ void connectToWifi(String ssid, String password)
   {
     Serial.println("Fail to connect to WiFi..");
     ESP_BT.println("Fail to connect to WiFi..");
+    digitalWrite(error_pin, HIGH);
   }
   else
   {
     Serial.println("Connected to WiFi..");
     ESP_BT.println("Connected to WiFi..");
     digitalWrite(wifi_pin, HIGH);
+    digitalWrite(error_pin, LOW);
+    connectMQTT();
   }
   ESP_BT.print("LOCAL IP : " + WiFi.localIP().toString());
   server.begin();
   ESP_BT.println("Server Begin ...");
+}
+
+void connectMQTT()
+{
+  int maxTries = 20;
+  int tries = 0;
+  Serial.println(storedServer);
+  client.setServer(storedServer.c_str(), 1883);
+  client.setCallback(callback);
+  while (!client.connected() && tries < maxTries)
+  {
+    tries++;
+    String client_id = "esp32-ttt-client-";
+    client_id += String(WiFi.macAddress());
+    Serial.printf("The client %s connects to the public mqtt broker\n", client_id.c_str());
+    if (client.connect(client_id.c_str(), mqtt_username, mqtt_password))
+    {
+      Serial.println("Public emqx mqtt broker connected");
+      digitalWrite(wifi_pin, HIGH);
+      digitalWrite(error_pin, LOW);
+    }
+    else
+    {
+      Serial.print("failed with state ");
+      Serial.print(client.state());
+      digitalWrite(error_pin, HIGH);
+      digitalWrite(wifi_pin, LOW);
+      delay(100);
+      digitalWrite(wifi_pin, HIGH);
+      delay(100);
+      digitalWrite(wifi_pin, LOW);
+      delay(100);
+      digitalWrite(wifi_pin, HIGH);
+      delay(100);
+      digitalWrite(wifi_pin, LOW);
+      delay(100);
+      digitalWrite(wifi_pin, HIGH);
+      delay(100);
+      digitalWrite(wifi_pin, LOW);
+      delay(100);
+      digitalWrite(wifi_pin, HIGH);
+      delay(100);
+      digitalWrite(wifi_pin, LOW);
+      delay(100);
+    }
+  }
 }
 
 String getStoredSSID()
@@ -81,7 +151,7 @@ String getStoredSSID()
 String getStoredPWD()
 {
   String storedPWD;
-  for (int i = 0; i < 96; ++i)
+  for (int i = 0; i < 64; ++i)
   {
     if (EEPROM.read(i + 32) != 255 && EEPROM.read(i + 32) != 0)
       storedPWD += char(EEPROM.read(i + 32));
@@ -98,6 +168,26 @@ void saveSSID(String ssid)
   EEPROM.commit();
 }
 
+void saveServer(String ip)
+{
+  for (int i = 0; i < ip.length(); ++i)
+  {
+    EEPROM.write(i + 96, ip[i]);
+  }
+  EEPROM.commit();
+}
+
+String getStoredServer()
+{
+  String storedServer;
+  for (int i = 0; i < 128; ++i)
+  {
+    if (EEPROM.read(i + 96) != 255 && EEPROM.read(i + 96) != 0)
+      storedServer += char(EEPROM.read(i + 96));
+  }
+  return storedServer;
+}
+
 void savePWD(String pwd)
 {
 
@@ -110,7 +200,7 @@ void savePWD(String pwd)
 
 void clearEEPROM()
 {
-  for (int i = 0; i < 96; ++i)
+  for (int i = 0; i < 128; ++i)
   {
     EEPROM.write(i, 0);
   }
@@ -127,12 +217,19 @@ void setup()
   Serial.println("start connecting ...");
   pinMode(feed_back_pin, OUTPUT);
   pinMode(wifi_pin, OUTPUT);
+  pinMode(error_pin, OUTPUT);
   // clearEEPROM(); // uncommit whene dev
 
   storedSSID = getStoredSSID();
   if (storedSSID == NULL)
   {
     storedSSID = ssid;
+  }
+
+  storedServer = getStoredServer();
+  if (storedServer == NULL)
+  {
+    storedServer = mqttServer;
   }
 
   storedPWD = getStoredPWD();
@@ -160,8 +257,27 @@ void checkBLTEConfig()
 {
   if (ESP_BT.available())
   {
+    digitalWrite(feed_back_pin, HIGH);
+    delay(500);
+    digitalWrite(feed_back_pin, LOW);
+
     String bte_serial = ESP_BT.readStringUntil('\n');
     Serial.println(bte_serial);
+    if (bte_serial.startsWith("SERVER"))
+    {
+      if (bte_serial.indexOf("IP") != -1)
+      {
+        int start = bte_serial.indexOf('"') + 1;
+        int end = bte_serial.indexOf('"', start + 1);
+        String serverIP = bte_serial.substring(start, end);
+        saveServer(serverIP);
+        storedServer = getStoredServer();
+        ESP_BT.print("SERVER IP : {" + storedServer + "}");
+      }
+      digitalWrite(feed_back_pin, HIGH);
+      delay(500);
+      digitalWrite(feed_back_pin, LOW);
+    }
     if (bte_serial.startsWith("CACHE"))
     {
       if (bte_serial.indexOf("CLEAR") != -1)
@@ -199,7 +315,7 @@ void checkBLTEConfig()
 
       if (bte_serial.indexOf("CRD") != -1)
       {
-        ESP_BT.println("SSID : {" + storedSSID + "} , PWD : {" + storedPWD + "}");
+        ESP_BT.println("SSID : {" + storedSSID + "} , PWD : {" + storedPWD + "} , SERVER : {" + storedServer + "}");
       }
 
       if (bte_serial.indexOf("STATUS") != -1)
@@ -213,19 +329,17 @@ void checkBLTEConfig()
         ESP_BT.print("LOCAL IP : " + WiFi.localIP().toString());
       }
     }
+    delay(500);
+    digitalWrite(feed_back_pin, HIGH);
+    delay(500);
+    digitalWrite(feed_back_pin, LOW);
   }
   delay(20);
 }
-bool motor = false;
 
 void loop()
 {
   checkBLTEConfig();
-  WiFiClient client = server.available();
-  if (client)
-  { // if you get a client,
-    String req = client.readStringUntil('\r');
-    Serial.println(req);
-    // client.flush();
-  }
+  client.publish(topic, "hello world");
+  delay(2000);
 }
