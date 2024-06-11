@@ -4,13 +4,13 @@
 #include <PubSubClient.h>
 
 // Default WIFI
-const char *ssid = "your ssid";
-const char *password = "your password";
+const char *ssid = "Ulysse.";
+const char *password = "Uly2023sse";
 String storedSSID;
 String storedPWD;
 
 String storedServer;
-const char *mqttServer = "192.168.137.1";
+const char *mqttServer = "192.168.1.16";
 const char *topic = "example";
 const char *mqtt_username = "emqx";
 const char *mqtt_password = "public";
@@ -409,6 +409,5 @@ void setup()
 void loop()
 {
   checkBLTEConfig();
-  client.publish(topic, "hello world");
   delay(2000);
 }

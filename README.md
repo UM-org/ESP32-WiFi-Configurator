@@ -13,6 +13,9 @@ Change BLTE device name
 String device_name = "ESP32-BT-Slave";
 ```
 
+## Upload script
+To upload the code press boot button on the esp.
+
 ## CMDS
 
 WIFI Status
