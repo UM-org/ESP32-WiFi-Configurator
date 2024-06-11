@@ -35,6 +35,28 @@ const byte error_pin = 18;
 #if !defined(CONFIG_BT_SPP_ENABLED)
 #error Serial Port Profile for Bluetooth is not available or not enabled. It is only available for the ESP32 chip.
 #endif
+
+void callback(char *topic, byte *payload, unsigned int length);
+
+void connectMQTT();
+void connectToWifi(String ssid, String password);
+void checkBLTEConfig();
+
+void clearSSID();
+String getStoredSSID();
+void saveSSID(String ssid);
+
+void clearPWD();
+String getStoredPWD();
+void savePWD(String pwd);
+
+void clearServer();
+String getStoredServer();
+void saveServer(String ip);
+
+String cleanString(String txt);
+void clearEEPROM();
+
 void callback(char *topic, byte *payload, unsigned int length)
 {
   Serial.print("Message arrived in topic: ");
@@ -50,6 +72,7 @@ void callback(char *topic, byte *payload, unsigned int length)
 
 void connectToWifi(String ssid, String password)
 {
+  digitalWrite(error_pin, LOW);
   int maxTries = 20;
   int tries = 0;
   Serial.println("CONNECTING WIFI WITH : ");
@@ -93,6 +116,7 @@ void connectToWifi(String ssid, String password)
 
 void connectMQTT()
 {
+  digitalWrite(error_pin, LOW);
   int maxTries = 20;
   int tries = 0;
   Serial.println(storedServer);
@@ -137,6 +161,15 @@ void connectMQTT()
   }
 }
 
+void clearSSID()
+{
+  for (int i = 0; i < 32; ++i)
+  {
+    EEPROM.write(i, 0);
+  }
+  EEPROM.commit();
+}
+
 String getStoredSSID()
 {
   String storedSSID;
@@ -148,19 +181,9 @@ String getStoredSSID()
   return storedSSID;
 }
 
-String getStoredPWD()
-{
-  String storedPWD;
-  for (int i = 0; i < 64; ++i)
-  {
-    if (EEPROM.read(i + 32) != 255 && EEPROM.read(i + 32) != 0)
-      storedPWD += char(EEPROM.read(i + 32));
-  }
-  return storedPWD;
-}
-
 void saveSSID(String ssid)
 {
+  clearSSID();
   for (int i = 0; i < ssid.length(); ++i)
   {
     EEPROM.write(i, ssid[i]);
@@ -168,8 +191,18 @@ void saveSSID(String ssid)
   EEPROM.commit();
 }
 
+void clearServer()
+{
+  for (int i = 0; i < 128; ++i)
+  {
+    EEPROM.write(i + 96, 0);
+  }
+  EEPROM.commit();
+}
+
 void saveServer(String ip)
 {
+  clearServer();
   for (int i = 0; i < ip.length(); ++i)
   {
     EEPROM.write(i + 96, ip[i]);
@@ -188,9 +221,29 @@ String getStoredServer()
   return storedServer;
 }
 
+void clearPWD()
+{
+  for (int i = 0; i < 64; ++i)
+  {
+    EEPROM.write(i + 32, 0);
+  }
+  EEPROM.commit();
+}
+
+String getStoredPWD()
+{
+  String storedPWD;
+  for (int i = 0; i < 64; ++i)
+  {
+    if (EEPROM.read(i + 32) != 255 && EEPROM.read(i + 32) != 0)
+      storedPWD += char(EEPROM.read(i + 32));
+  }
+  return storedPWD;
+}
+
 void savePWD(String pwd)
 {
-
+  clearPWD();
   for (int i = 0; i < pwd.length(); ++i)
   {
     EEPROM.write(i + 32, pwd[i]);
@@ -205,41 +258,6 @@ void clearEEPROM()
     EEPROM.write(i, 0);
   }
   EEPROM.commit();
-}
-
-void setup()
-{
-  delay(1000);
-  Serial.begin(115200);
-  ESP_BT.begin(device_name);
-  Serial.printf("The device with name \"%s\" is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str());
-  EEPROM.begin(128);
-  Serial.println("start connecting ...");
-  pinMode(feed_back_pin, OUTPUT);
-  pinMode(wifi_pin, OUTPUT);
-  pinMode(error_pin, OUTPUT);
-  // clearEEPROM(); // uncommit whene dev
-
-  storedSSID = getStoredSSID();
-  if (storedSSID == NULL)
-  {
-    storedSSID = ssid;
-  }
-
-  storedServer = getStoredServer();
-  if (storedServer == NULL)
-  {
-    storedServer = mqttServer;
-  }
-
-  storedPWD = getStoredPWD();
-  Serial.println(storedPWD == NULL);
-  if (storedPWD == NULL)
-  {
-    storedPWD = password;
-  }
-  connectToWifi(storedSSID, storedPWD);
-  Serial.println(WiFi.localIP());
 }
 
 String cleanString(String txt)
@@ -288,73 +306,109 @@ void checkBLTEConfig()
           delay(200);
           digitalWrite(error_pin, HIGH);
           delay(200);
-          digitalWrite(error_pin, LOW);
+          digitalWrite(error_pin, HIGH);
           ESP_BT.print("CANT CONNECT TO MQTT SERVER WHILE WIFI IS NOT CONNECTED");
         }
       }
-
-      if (bte_serial.startsWith("CACHE"))
-      {
-        if (bte_serial.indexOf("CLEAR") != -1)
-        {
-          clearEEPROM();
-          ESP_BT.print("Finish");
-        }
-
-        if (bte_serial.indexOf("GET") != -1)
-        {
-          ESP_BT.println("SSID : {" + storedSSID + "} , PWD : {" + storedPWD + "} , MQTT SERVER : {" + storedServer + "}");
-        }
-      }
-      if (bte_serial.startsWith("WIFI"))
-      {
-        if (bte_serial.indexOf("CONNECT") != -1)
-        {
-          connectToWifi(storedSSID, storedPWD);
-        }
-
-        if (bte_serial.indexOf("SSID") != -1)
-        {
-          int start = bte_serial.indexOf('"') + 1;
-          int end = bte_serial.indexOf('"', start + 1);
-          String ssid = bte_serial.substring(start, end);
-          saveSSID(ssid);
-          storedSSID = getStoredSSID();
-          ESP_BT.print("SSID stored : {" + storedSSID + "}");
-        }
-
-        if (bte_serial.indexOf("PWD") != -1)
-        {
-          int start = bte_serial.indexOf('"') + 1;
-          int end = bte_serial.indexOf('"', start + 1);
-          String pwd = bte_serial.substring(start, end);
-          savePWD(pwd);
-          storedPWD = getStoredPWD(),
-          ESP_BT.println("PWD stored : {" + storedPWD + "}");
-        }
-
-        if (bte_serial.indexOf("STATUS") != -1)
-        {
-          String status = "Connected";
-          if (WiFi.status() != WL_CONNECTED)
-          {
-            status = "Not connected";
-          }
-          ESP_BT.println("SSID : " + storedSSID + " ,Status : " + status);
-          ESP_BT.print("LOCAL IP : " + WiFi.localIP().toString());
-        }
-      }
-      delay(500);
-      digitalWrite(feed_back_pin, HIGH);
-      delay(500);
-      digitalWrite(feed_back_pin, LOW);
     }
-    delay(20);
+    if (bte_serial.startsWith("CACHE"))
+    {
+      if (bte_serial.indexOf("CLEAR") != -1)
+      {
+        clearEEPROM();
+        ESP_BT.print("Finish");
+      }
+
+      if (bte_serial.indexOf("GET") != -1)
+      {
+        ESP_BT.println("SSID : {" + storedSSID + "} , PWD : {" + storedPWD + "} , MQTT SERVER : {" + storedServer + "}");
+      }
+    }
+    if (bte_serial.startsWith("WIFI"))
+    {
+      if (bte_serial.indexOf("CONNECT") != -1)
+      {
+        connectToWifi(storedSSID, storedPWD);
+      }
+
+      if (bte_serial.indexOf("SSID") != -1)
+      {
+        int start = bte_serial.indexOf('"') + 1;
+        int end = bte_serial.indexOf('"', start + 1);
+        String ssid = bte_serial.substring(start, end);
+
+        saveSSID(ssid);
+        storedSSID = getStoredSSID();
+        ESP_BT.print("SSID stored : {" + storedSSID + "}");
+      }
+
+      if (bte_serial.indexOf("PWD") != -1)
+      {
+        int start = bte_serial.indexOf('"') + 1;
+        int end = bte_serial.indexOf('"', start + 1);
+        String pwd = bte_serial.substring(start, end);
+        savePWD(pwd);
+        storedPWD = getStoredPWD(),
+        ESP_BT.println("PWD stored : {" + storedPWD + "}");
+      }
+
+      if (bte_serial.indexOf("STATUS") != -1)
+      {
+        String status = "Connected";
+        if (WiFi.status() != WL_CONNECTED)
+        {
+          status = "Not connected";
+        }
+        ESP_BT.println("SSID : " + storedSSID + " ,Status : " + status);
+        ESP_BT.print("LOCAL IP : " + WiFi.localIP().toString());
+      }
+    }
+    delay(500);
+    digitalWrite(feed_back_pin, HIGH);
+    delay(500);
+    digitalWrite(feed_back_pin, LOW);
+  }
+  delay(20);
+}
+
+void setup()
+{
+  delay(1000);
+  Serial.begin(115200);
+  ESP_BT.begin(device_name);
+  Serial.printf("The device with name \"%s\" is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str());
+  EEPROM.begin(128);
+  Serial.println("start connecting ...");
+  pinMode(feed_back_pin, OUTPUT);
+  pinMode(wifi_pin, OUTPUT);
+  pinMode(error_pin, OUTPUT);
+  // clearEEPROM(); // uncommit whene dev
+
+  storedSSID = getStoredSSID();
+  if (storedSSID == NULL)
+  {
+    storedSSID = ssid;
   }
 
-  void loop()
+  storedServer = getStoredServer();
+  if (storedServer == NULL)
   {
-    checkBLTEConfig();
-    client.publish(topic, "hello world");
-    delay(2000);
+    storedServer = mqttServer;
   }
+
+  storedPWD = getStoredPWD();
+  Serial.println(storedPWD == NULL);
+  if (storedPWD == NULL)
+  {
+    storedPWD = password;
+  }
+  connectToWifi(storedSSID, storedPWD);
+  Serial.println(WiFi.localIP());
+}
+
+void loop()
+{
+  checkBLTEConfig();
+  client.publish(topic, "hello world");
+  delay(2000);
+}
